@@ -11,6 +11,8 @@ import torch
 import torch.optim as optim
 from tqdm import tqdm
 
+from torch.utils.data import DataLoader, Subset
+
 import Config
 import utils
 
@@ -66,7 +68,32 @@ def main():
         )
 
     #scale each scalar
-    scaledAnchors = (torch.tensor(Config.ANCHORS[:2]) * torch.tensor(Config.S).unsqueeze(1).unsqueeze(1)).to(Config.DEVICE)
+    scaledAnchors = (torch.tensor(Config.ANCHORS[:2]) * torch.tensor(Config.S).unsqueeze(1).unsqueeze(1)).repeat(1,3,2).to(Config.DEVICE)
+
+    # 1. Initialize Dataset
+    full_dataset = CTDataset(
+        imgDir=Config.IMG_DIR,
+        labelDir=Config.LABEL_DIR,
+        anchors=Config.ANCHORS,
+        S = Config.S,
+        # transform=train_transforms
+    )
+
+    # 2. Apply PILOT_MODE Subset Logic
+    if Config.PILOT_MODE:
+        print(f"⚠PILOT_MODE ACTIVE: Testing only first 100 slices.")
+        indices = list(range(100))
+        train_subset = Subset(full_dataset, indices)
+        train_loader = DataLoader(
+            train_subset, batch_size=Config.BATCH_SIZE, shuffle=False, pin_memory=Config.PIN_MEMORY
+        )
+    else:
+        print(f"FULL RUN ACTIVE: Training on all available slices.")
+        train_loader = DataLoader(
+            full_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, pin_memory=Config.PIN_MEMORY
+        )
+
+
 
     for epoch in range(Config.NUM_EPOCHS):
         print(f"\nEpoch {epoch + 1}/{Config.NUM_EPOCHS} ")
