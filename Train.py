@@ -34,7 +34,7 @@ def trainFunction (trainLoader, model, optimizer, lossFn, scaler, scaledAnchors)
         with torch.cuda.amp.autocast():
             out = model(x)
             #compute the loss, with the 2 anchors
-            loss =  (lossFn(out[0], y0, scaledAnchors[0]) + lossFn(out[1], y0, scaledAnchors[1]))
+            loss =  (lossFn(out[0], y0, scaledAnchors[0]) + lossFn(out[1], y1, scaledAnchors[1]))
 
         losses.append(loss)
         optimizer.zero_grad()
@@ -90,7 +90,7 @@ def main():
             mapval = utils.mean_average_precision(
                 pred_boxes,
                 true_boxes,
-                iou_threshold =  Config.MAP_IOU_THRESH,
+                iou_threshold = Config.MAP_IOU_THRESH,
                 box_format="midpoint",
                 num_classes= Config.NUM_CLASSES,
             )

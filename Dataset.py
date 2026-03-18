@@ -97,18 +97,17 @@ class CTDataset (Dataset):
         imgName = self.annotations.iloc[index, 0]
         imgPath = os.path.join(self.imageDir, imgName)
 
-        #loading up the CT slice
+        #loading up the CT slice and convert to grayscale fs fs
         image = np.array(Image.open(imgPath).convert("L"), dtype = np.float32)
         image /= 255.0
 
         image = torch.tensor(image).unsqueeze(0) ## [1, H, W]
 
-
-        #extract the sliceLayer since the txt files are labelled like BoundedSegCT_(sliceLayer).txt
-        sliceLayer = imgName.replace("BoundedSegCT", "").replace("png", "")
+        #extract the sliceLayer since the txt files are labelled like BoundedSegCT(Patient#)_(sliceLayer).txt
+        IDandLayer = imgName.replace("SegCTS", "").replace(".png", "")
 
         #this is now for the labelpaths
-        labelName = f"BoundedSegCT_{sliceLayer}.txt"
+        labelName = f"BoundedSegCT_{IDandLayer}.txt"
         labelPath = os.path.join(self.labelDir, labelName)
 
         #boudnign box labeling loading ensuring class label is last (x,y,
@@ -118,13 +117,13 @@ class CTDataset (Dataset):
 
         #send in the image and bounding boxes, if iamges are rotated the bounding boxes are correct
         if self.transformation:
-            augmentations = self.transfomation (iamge = image, boundingb = boundingb)
+            augmentations = self.transformation (image = image, boundingb = boundingb)
 
             image = augmentations["image"]
             boundingb = augmentations["boundingb"]
 
         #to crate the target tensors
-        targets = [torch.zero((self.anchorsPerScale, S, S, self.numClasses + 5)) for S in self.S]
+        targets = [torch.zero((self.anchorsPerScale, S, S, self.numClasses + 5)) for S in self.gridSize]
 
         for box in boundingb:
             x, y, width, height, classLabel = box

@@ -5,8 +5,7 @@ Date Modified: 2/27/26
 
 Contains all the utilities that will be used for the other files
 '''
-
-import Config
+#if i dont import Config .. theres no Error
 
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -76,7 +75,7 @@ def intersection_over_union (boxPred, boxLabels, boxFormat = "midpoint"):
     box2_area = abs((box2_x2 - box2_x1) * (box2_y2 - box2_y1))
 
     #true IoU calculation
-    return intersection / (box1_area + box2_area - intersection + 1e-6)
+    return (intersection / (box1_area + box2_area - intersection + 1e-6))
 
 
 def non_max_suppression (bboxes, iouThreshold, threshold, boxFormat = "corners"):
@@ -182,7 +181,7 @@ def mean_average_precision(pred_boxes, true_boxes, iou_threshold = 0.5, box_form
                 iou = intersection_over_union(
                     torch.tensor(detection[3:]),
                     torch.tensor(gt[3:]),
-                    box_format = box_format,
+                    boxFormat = box_format,
                 )
 
                 if iou > best_iou:
@@ -277,9 +276,9 @@ def get_evaluation_bboxes(loader, model, iou_threshold, anchors, threshold, box_
         for idx in range(batch_size):
             nms_boxes = non_max_suppression(
                 bboxes[idx],
-                iou_threshold = iou_threshold,
+                iouThreshold = iou_threshold,
                 threshold = threshold,
-                box_format = box_format,
+                boxFormat = box_format,
             )
 
             for nms_box in nms_boxes:
@@ -353,7 +352,7 @@ def check_class_accuracy(model, loader, threshold):
         with torch.no_grad():
             out = model(x)
 
-    #range of dtetcion heads
+    #range of detetcion heads
         for i in range(2):
             y[i] = y[i].to(Config.DEVICE)
             obj = y[i][..., 0] == 1 # in paper this is Iobj_i
@@ -511,7 +510,7 @@ def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
 
     for i in range(batch_size):
         nms_boxes = non_max_suppression(
-            bboxes[i], iou_threshold = iou_thresh, threshold = thresh, box_format = "midpoint",
+            bboxes[i], iouThreshold = iou_thresh, threshold = thresh, boxFormat = "midpoint",
         )
         plot_image(x[i].permute(1,2,0).detach().cpu(), nms_boxes)
 

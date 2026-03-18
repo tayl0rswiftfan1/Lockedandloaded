@@ -43,18 +43,19 @@ class LossFunction (nn.Module):
         boxPred = torch.cat([self.sigmoid(predictions[..., 1:3]), torch.exp(predictions[...,3:5]) * anchors], dim = -1)
 
         #calulating IoU, dont impact computational
-        ious = intersection_over_union(boxPred[obj], targets[..., 1:5][obj]).detatch()
+        ious = intersection_over_union(boxPred[obj], targets[..., 1:5][obj]).detach()
 
         #loss adjustment, if its an object, should factor in the iou
         objectLoss = self.bce ((predictions[..., 0:1][obj]), (ious * targets[..., 0:1][obj]))
 
         #predicting box coordinates
-        predictions[..., 1:3] = torch.sigmoid(predictions[..., 1:3]) # x and y are between [0,1]
+        predictionsCopy = predictions.clone()
+        predictionsCopy[..., 1:3] = torch.sigmoid(predictionsCopy[..., 1:3]) # x and y are between [0,1]
         #to help with better gradient flow using log
         targets[..., 3:5] = torch.log((1e-16 + targets [..., 3:5] / anchors))
 
         #loss of the box
-        boxLoss = self.mse(predictions[..., 1:5][obj], targets[...,1:5][obj])
+        boxLoss = self.mse(predictionsCopy[..., 1:5][obj], targets[...,1:5][obj])
 
         #class loss
         #sends in everyting..

@@ -54,6 +54,10 @@ WEIGHT_DECAY = 1e-5
 NUM_EPOCHS = 50
 PIN_MEMORY = True
 
+#inference params
+CONF_THRESHOLD = 0.05
+NMS_IOU_THRESH = 0.45
+MAP_IOU_THRESH = 0.5
 
 #check points for the model
 LOAD_MODEL = False
