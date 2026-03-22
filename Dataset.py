@@ -46,7 +46,6 @@ class CTDataset (Dataset):
         transform = None,
     ):
 
-
         #image and label path
         self.imageDir = imgDir
         self.labelDir = labelDir
@@ -63,29 +62,32 @@ class CTDataset (Dataset):
         self.anchors = torch.tensor(anchors[0] + anchors[1])
 
         self.numAnchors = self.anchors.shape[0] #num of scales (2)
-        self.anchorsPerScale = self.anchors.shape[1] // len(S) #3 anchors per stage
+        self.anchorsPerScale = self.numAnchors // len(S) #3 anchors per stage
 
         #IoU threshold
         self.ignoreIoUThresh = 0.5
 
+        '''
         # creating a masterlist CSV if it doesn't exist "imgdirectory.csv"
         if not os.path.exists(csvFile): #maybe dont even need the csvFile param since we can just load it all to memory
             print(f"checking folder: {imgDir}")
             # look only for all img files
             allFiles = os.listdir(imgDir)
-            imageFiles = [f for f in allFiles if f.endswith(("png", "tiff"))]
+            imageFiles = [f for f in allFiles if f.endswith((".png", ".tiff"))]
 
             # sort images numerically
-            imageFiles.sort(key = lambda x: int(" ".join(filter(str.isdigit, x)) or 0 ))
+            imageFiles.sort(key = lambda x: int("".join(filter(str.isdigit, x)) or 0 ))
 
             df = pd.DataFrame (imageFiles, columns = ["filenames"])
-            df.to_csv(imgDir, index = False)
+            df.tocsv(imgDir, index = False)
 
             #setting this
             self.annotations = df
         else:
             self.annotations = pd.read_csv(imgDir)
+        '''
 
+        self.annotations = pd.read_csv(csvFile)
 
 
     def __len__(self):
@@ -94,42 +96,35 @@ class CTDataset (Dataset):
     def __getitem__(self, index):
 
         #getting the image name and path first
-        imgName = self.annotations.iloc[index, 0]
-        imgPath = os.path.join(self.imageDir, imgName)
+        imgPath = self.annotations.iloc[index, 4]
+        labelPath = self.annotations.iloc[index, 5]
 
         #loading up the CT slice and convert to grayscale fs fs
         image = np.array(Image.open(imgPath).convert("L"), dtype = np.float32)
-        image /= 255.0
-
-        image = torch.tensor(image).unsqueeze(0) ## [1, H, W]
-
-        #extract the sliceLayer since the txt files are labelled like BoundedSegCT(Patient#)_(sliceLayer).txt
-        IDandLayer = imgName.replace("SegCTS", "").replace(".png", "")
-
-        #this is now for the labelpaths
-        labelName = f"BoundedSegCT_{IDandLayer}.txt"
-        labelPath = os.path.join(self.labelDir, labelName)
 
         #boudnign box labeling loading ensuring class label is last (x,y,
         boundingb = np.roll(np.loadtxt(labelPath, delimiter = " ", ndmin = 2), 4, axis = 1).tolist()
 
-        boundingb = torch.tensor(boundingb) ## needs to be moved
 
         #send in the image and bounding boxes, if iamges are rotated the bounding boxes are correct
         if self.transformation:
-            augmentations = self.transformation (image = image, boundingb = boundingb)
+            augmentations = self.transformation (image = image, bboxes = boundingb)
 
             image = augmentations["image"]
-            boundingb = augmentations["boundingb"]
+            boundingb = augmentations["bboxes"]
+
+        #convert to tensor after
+        # image = torch.tensor(image).unsqueeze(0) ## [1, H, W] dont need to double unsqueeze
+        boundingb = torch.tensor(boundingb).reshape(-1,5) ## needs to be moved
 
         #to crate the target tensors
-        targets = [torch.zero((self.anchorsPerScale, S, S, self.numClasses + 5)) for S in self.gridSize]
+        targets = [torch.zeros((self.anchorsPerScale, S, S, self.numClasses + 5)) for S in self.gridSize]
 
         for box in boundingb:
             x, y, width, height, classLabel = box
 
             boxWidthHeight = torch.tensor([width,height]) #looking at box[2:4]
-            iouAnchors = iou(boxWidthHeight, self.anchors, is_pred = False)
+            iouAnchors = iou(boxWidthHeight, self.anchors)
 
             #picking the best anchorbox
             indiciesAnchors = iouAnchors.argsort(descending = True, dim = 0)
