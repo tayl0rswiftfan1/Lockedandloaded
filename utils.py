@@ -15,6 +15,8 @@ import random
 import torch
 
 from collections import Counter
+
+from matplotlib.rcsetup import validate_string
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -272,6 +274,16 @@ def get_evaluation_bboxes(loader, model, iou_threshold, anchors, threshold, box_
         true_bboxes = cells_to_bboxes(
             labels[-1], anchor, S = S, is_preds=False
         )
+        '''
+        for i in range(len(predictions)):
+            S_i = predictions[i].shape[2]
+            anchor_i = torch.tensor([*anchors[i]]).to(device) * S_i
+            true_bboxes_i = cells_to_bboxes(labels[i], anchor_i, S=S_i, is_preds=False)
+            for idx in range(batch_size):
+                for box in true_bboxes_i[idx]:
+                    if box[1] > threshold:
+                        all_true_boxes.append([train_idx + idx] + box)
+        '''
 
         for idx in range(batch_size):
             nms_boxes = non_max_suppression(
@@ -413,7 +425,7 @@ def load_checkpoint(checkpoint_file, model, optimizer, lr):
         param_group["lr"] = lr
 
 
-def get_loaders(train_csv_path, test_csv_path):
+def get_loaders(train_csv_path, test_csv_path, val_csv_path):
     from Dataset import CTDataset
     """
    Creates training, validation, and evaluation DataLoaders for CT scans.
@@ -450,6 +462,16 @@ def get_loaders(train_csv_path, test_csv_path):
         anchors = Config.ANCHORS[:2],
     )
 
+    #for the eval of the model
+    train_val_dataset = CTDataset(
+        val_csv_path,
+        transform = Config.test_transforms,
+        S = S,
+        C = Config.NUM_CLASSES,
+        imgDir = Config.IMG_DIR,
+        labelDir = Config.LABEL_DIR,
+        anchors = Config.ANCHORS[:2],
+    )
     #for the loader
     train_loader = DataLoader(
         dataset = train_dataset,
@@ -468,18 +490,8 @@ def get_loaders(train_csv_path, test_csv_path):
         drop_last = False,
     )
 
-    #for the eval of the model
-    train_eval_dataset = CTDataset(
-        csvFile = None,
-        transform = Config.test_transforms,
-        S = S,
-        C = Config.NUM_CLASSES,
-        imgDir = Config.IMG_DIR,
-        labelDir = Config.LABEL_DIR,
-        anchors = Config.ANCHORS[:2],
-    )
-    train_eval_loader = DataLoader(
-        dataset = train_eval_dataset,
+    train_val_loader = DataLoader(
+        dataset = train_val_dataset,
         batch_size = Config.BATCH_SIZE,
         num_workers = Config.NUM_WORKERS,
         pin_memory = Config.PIN_MEMORY,
@@ -487,7 +499,7 @@ def get_loaders(train_csv_path, test_csv_path):
         drop_last = False,
     )
 
-    return train_loader, test_loader, train_eval_loader
+    return train_loader, test_loader, train_val_loader
 
 
 def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
