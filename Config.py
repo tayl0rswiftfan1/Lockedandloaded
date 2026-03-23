@@ -15,9 +15,7 @@ import pandas as pd
 import albumentations as A
 
 from PIL import Image, ImageFile
-
 from torch.utils.data import DataLoader, Dataset
-from torchgen.context import with_native_function_and_index
 
 #yep something
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -32,10 +30,18 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 utils.seed_everything()
 
 #Dataset Path... the folder with each CT
-DATASET_DIR = " "
+SCRIPT_DIR = os.path.dirname(os.path.abspath(""))
+DATASET_DIR = os.path.join(SCRIPT_DIR, "Dataset") #.csv file path
 #they are in the same folder
-IMG_DIR = DATASET_DIR
-LABEL_DIR = DATASET_DIR
+IMG_DIR = os.path.join(SCRIPT_DIR, "images") #where the images are
+LABEL_DIR = os.path.join (SCRIPT_DIR, "labels")#for now
+
+# Per-split CSVs from boundingBox.py
+TRAIN_CSV = os.path.join(SCRIPT_DIR, "train.csv")
+VAL_CSV   = os.path.join(SCRIPT_DIR, "val.csv")
+TEST_CSV  = os.path.join(SCRIPT_DIR, "test.csv")
+
+
 
 #Dataset prooperties
 IMAGE_SIZE = 512
