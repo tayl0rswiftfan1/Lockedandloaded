@@ -189,8 +189,32 @@ def main():
         if epoch % 5 == 0 or epoch == Config.NUM_EPOCHS - 1:
             savePlot(trainLosses, iouScores)
 
+    # --- final evaluation on test set ---
+    print("\n=== Final Test Set Evaluation ===")
+    utils.check_class_accuracy(model, testLoader, threshold=Config.CONF_THRESHOLD)
+
+    pred_boxes, true_boxes = utils.get_evaluation_bboxes(
+        testLoader,
+        model,
+        iou_threshold=Config.NMS_IOU_THRESH,
+        anchors=scaledAnchors,
+        threshold=Config.CONF_THRESHOLD,
+    )
+    mapval = utils.mean_average_precision(
+        pred_boxes,
+        true_boxes,
+        iou_threshold=Config.MAP_IOU_THRESH,
+        box_format="midpoint",
+        num_classes=Config.NUM_CLASSES,
+    )
+    print(f"Final Test MAP: {mapval.item():.4f}")
+    model.train()
+
+
 #if true run the main function
 if __name__ == "__main__":
     main()
+
+
 
 
