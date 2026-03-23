@@ -59,8 +59,10 @@ def main():
     scaler = torch.cuda.amp.GradScaler(enabled=(Config.DEVICE=="cuda"))
 
     trainLoader, testLoader, trainEvalLoader = utils.get_loaders(
-        Config.IMG_DIR, Config.LABEL_DIR
+        Config.TRAIN_CSV, Config.TEST_CSV, Config.VAL_CSV
     )
+        #Config.DATASET_DIR, Config.DATASET_DIR
+
 
     if Config.LOAD_MODEL:
         utils.load_checkpoint(
@@ -68,10 +70,11 @@ def main():
         )
 
     #scale each scalar
-    scaledAnchors = (torch.tensor(Config.ANCHORS[:2]) * torch.tensor(Config.S).unsqueeze(1).unsqueeze(1)).repeat(1,3,2).to(Config.DEVICE)
+    scaledAnchors = (torch.tensor(Config.ANCHORS[:2]) * torch.tensor(Config.S).unsqueeze(1).unsqueeze(1)).to(Config.DEVICE)
 
     # 1. Initialize Dataset
     full_dataset = CTDataset(
+        csvFile = Config.DATASET_DIR,
         imgDir=Config.IMG_DIR,
         labelDir=Config.LABEL_DIR,
         anchors=Config.ANCHORS,
@@ -111,7 +114,7 @@ def main():
                 testLoader,
                 model,
                 iou_threshold =  Config.NMS_IOU_THRESH,
-                anchors =  Config.ANCHORS,
+                anchors =  scaledAnchors,
                 threshold =  Config.CONF_THRESHOLD,
             )
             mapval = utils.mean_average_precision(
