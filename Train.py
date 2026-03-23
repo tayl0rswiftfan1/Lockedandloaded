@@ -6,12 +6,16 @@ Date Modified: 2/27/26
 This is the main training file! of the model
 '''
 
-
+import time
 import torch
 import torch.optim as optim
 from tqdm import tqdm
 
 from torch.utils.data import DataLoader, Subset
+
+import matplotlib
+matplotlib.use("Agg")  # non-interactive backend, safe for training loops
+import matplotlib.pyplot as plt
 
 import Config
 import utils
@@ -48,6 +52,37 @@ def trainFunction (trainLoader, model, optimizer, lossFn, scaler, scaledAnchors)
         meanLoss = sum(losses) / len(losses)
         loop.set_postfix(loss = meanLoss)
 
+    return meanLoss
+
+
+def savePlot(trainLosses, iouScores):
+    #Save loss and IoU curves to a single PNG
+
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+
+    # loss curve
+    ax1.plot(range(1, len(trainLosses) + 1), trainLosses, color="blue", label="Train Loss")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax1.set_title("Training Loss")
+    ax1.legend()
+
+    # IoU curve
+    if iouScores:
+        iouEpochs = [e for e, _ in iouScores]
+        iouVals = [v for _, v in iouScores]
+        ax2.plot(iouEpochs, iouVals, color="green", marker="o", label="Mean IoU")
+        ax2.set_ylim(0, 1)
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("IoU")
+    ax2.set_title("Validation IoU")
+    ax2.legend()
+
+    plt.tight_layout()
+    plt.savefig("training_curves.png")
+    plt.close()
+    print("Curves saved to training_curves.png")
+
 
 def main():
     model = Detection(numClasses=Config.NUM_CLASSES).to(Config.DEVICE)
@@ -71,7 +106,7 @@ def main():
 
     #scale each scalar
     scaledAnchors = (torch.tensor(Config.ANCHORS[:2]) * torch.tensor(Config.S).unsqueeze(1).unsqueeze(1)).to(Config.DEVICE)
-
+    '''
     # 1. Initialize Dataset
     full_dataset = CTDataset(
         csvFile = Config.DATASET_DIR,
@@ -81,7 +116,7 @@ def main():
         S = Config.S,
         # transform=train_transforms
     )
-
+    
     # 2. Apply PILOT_MODE Subset Logic
     if Config.PILOT_MODE:
         print(f"⚠PILOT_MODE ACTIVE: Testing only first 100 slices.")
@@ -96,12 +131,25 @@ def main():
             full_dataset, batch_size=Config.BATCH_SIZE, shuffle=True, pin_memory=Config.PIN_MEMORY
         )
 
+    '''
 
+    # tracking
+    trainLosses = []
+    iouScores = []
 
     for epoch in range(Config.NUM_EPOCHS):
         print(f"\nEpoch {epoch + 1}/{Config.NUM_EPOCHS} ")
 
-        trainFunction(trainLoader, model, optimizer, lossFn, scaler, scaledAnchors)
+        # --- train ---
+        epochStart = time.time()
+        meanLoss = trainFunction(trainLoader, model, optimizer, lossFn, scaler, scaledAnchors)
+        epochTime = time.time() - epochStart
+        trainLosses.append(meanLoss)
+
+        # time estimate
+        remaining = (Config.NUM_EPOCHS - (epoch + 1)) * epochTime
+        print(f"Epoch time: {epochTime:.1f}s | Est. remaining: {remaining / 60:.1f} min")
+
 
         if Config.SAVE_MODEL:
             utils.save_checkpoint(model, optimizer)
@@ -109,6 +157,16 @@ def main():
         #showign the progress
         if epoch > 0 and epoch % 3 == 0:
             utils.check_class_accuracy(model, testLoader, threshold = Config.CONF_THRESHOLD)
+
+            meanIou = utils.get_mean_iou(
+                testLoader,
+                model,
+                anchors=scaledAnchors,
+                threshold=Config.CONF_THRESHOLD,
+                device=Config.DEVICE
+            )
+            iouScores.append((epoch + 1, meanIou))
+            print(f"Mean IoU: {meanIou:.4f}")
 
             pred_boxes, true_boxes = utils.get_evaluation_bboxes(
                 testLoader,
@@ -127,6 +185,9 @@ def main():
             print(f"MAP: {mapval.item()}")
             model.train()
 
+        # --- save plot every 5 epochs ---
+        if epoch % 5 == 0 or epoch == Config.NUM_EPOCHS - 1:
+            savePlot(trainLosses, iouScores)
 
 #if true run the main function
 if __name__ == "__main__":

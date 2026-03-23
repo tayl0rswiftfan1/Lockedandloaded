@@ -502,6 +502,41 @@ def get_loaders(train_csv_path, test_csv_path, val_csv_path):
     return train_loader, test_loader, train_val_loader
 
 
+def get_mean_iou(loader, model, anchors, threshold, device):
+    model.eval()
+    ious = []
+
+    with torch.no_grad():
+        for x, y in tqdm(loader, desc = "IoU computation", colour="cyan"):
+            x = x.to(device)
+            out = model(x)
+
+            for i in range(len(out)):
+                S = out[i].shape[2]
+                anchor = anchors[i].to(device)
+                anchor = anchor.reshape(1, 3, 1, 1, 2)
+
+                # decode predicted boxes
+                boxPred = torch.cat([
+                    torch.sigmoid(out[i][..., 1:3]),
+                    torch.exp(out[i][..., 3:5]) * anchor
+                ], dim=-1)
+
+                # only look at cells where object exists
+                obj = y[i].to(device)[..., 0] == 1
+                if obj.sum() == 0:
+                    continue
+
+                iouVals = intersection_over_union(
+                    boxPred[obj],
+                    y[i].to(device)[..., 1:5][obj]
+                )
+                ious.append(iouVals.mean().item())
+
+    model.train()
+    return sum(ious) / len(ious) if ious else 0.0
+s
+
 def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
     model.eval()
     x, y = next(iter(loader))
